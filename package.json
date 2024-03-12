@@ -7,5 +7,8 @@
     "test": "calculator"
   },
   "author": "yyq252517",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.26"
+  }
 }
