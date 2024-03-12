@@ -1,0 +1,11 @@
+{
+  "name": "production-line-calculator",
+  "version": "1.0.0",
+  "description": "awa",
+  "main": "calculator.js",
+  "scripts": {
+    "test": "calculator"
+  },
+  "author": "yyq252517",
+  "license": "ISC"
+}
