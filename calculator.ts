@@ -14,7 +14,10 @@ import * as fs from 'fs';
                     "node_id": <string>,
 
                     "item_id": <string>,
-                    "amount": <number>
+                    "amount": <number>,
+
+                    // when node_id is "output", require will be ignored
+                    "require": <number>
                 },
                 ...
             ],
@@ -26,7 +29,8 @@ import * as fs from 'fs';
         {
             "node_id": <string>,
             "item_id": <string>,
-            "amount": <number>
+            "amount": 0,
+            "require": <number>
         },
         ...
     ]
@@ -37,6 +41,7 @@ interface item_list_entry {
     node_id: string;
     item_id: string;
     amount: number;
+    require: number;
 }
 
 interface node_list_entry {
@@ -52,7 +57,7 @@ interface graph_input_json {
 
 class item_edge {
 
-    constructor(public from: string, public to: string, public amount: number, public item_id: string) { }
+    constructor(public from: string, public to: string, public amount: number, public item_id: string, public require: number) { }
 }
 
 class item_io {
@@ -62,7 +67,7 @@ class item_io {
 }
 
 function parse_edge(json: item_list_entry, from: string, production_time: number): item_edge {
-    let res_edge: item_edge = new item_edge(from, json.node_id, json.amount / production_time, json.item_id);
+    let res_edge: item_edge = new item_edge(from, json.node_id, json.amount / production_time, json.item_id, json.require / production_time);
     return res_edge;
 }
 
@@ -79,7 +84,7 @@ function parse_graph(json: graph_input_json): production_line_graph {
     }
 
     for (let input of json.input_list) {
-        res.inputs.push(new item_io(input.node_id, input.item_id, input.amount));
+        res.inputs.push(new item_io(input.node_id, input.item_id, input.require));
     }
 
     return res;
@@ -91,6 +96,7 @@ class production_line_graph {
     prev: Map<string, Array<string>>;
     inputs: Array<item_io>;
     outputs: Array<item_io>;
+
     // index of inputs and outputs
     removed_edges: Array<[number, number]>;
 
@@ -101,8 +107,8 @@ class production_line_graph {
         this.removed_edges = new Array<[number, number]>();
     }
 
-    add_edge_raw(from: string, to: string, item: string, amount: number): void {
-        let temp_edge: item_edge = new item_edge(from, to, amount, item);
+    add_edge_raw(from: string, to: string, item: string, amount: number, require: number): void {
+        let temp_edge: item_edge = new item_edge(from, to, amount, item, require);
         if (!this.edge.has(from)) {
             this.edge.set(from, new Array());
         }
@@ -120,24 +126,85 @@ class production_line_graph {
     }
 
     add_edge(edge: item_edge): void {
-        this.add_edge_raw(edge.from, edge.to, edge.item_id, edge.amount);
+        this.add_edge_raw(edge.from, edge.to, edge.item_id, edge.amount, edge.require);
     }
 
     eliminate_circle(): void {
+        let visited: Map<string, boolean>;
+        visited = new Map<string, boolean>();
+        let deg: Map<string, number> = new Map<string, number>();
 
+        this.edge.forEach((_, node) => {
+            deg.set(node, 0);
+            visited.set(node, false);
+        });
+
+        this.edge.forEach((edges) => {
+            edges.forEach((edge) => {
+                if (edge.to == "output") return;
+                deg.set(edge.to, deg.get(edge.to) + 1);
+            })
+        });
+
+        // console.log(deg);
+
+        let dfs =
+            function (graph: production_line_graph, now: string): void {
+                // console.log("dfs:" + now);
+                visited[now] = true;
+                let edges: item_edge[] = graph.edge.get(now);
+                for (let id = 0; id < edges.length; id++) {
+                    if (edges[id].to == "output") continue;
+                    if (visited[edges[id].to]) {
+                        graph.inputs.push(new item_io(edges[id].to, edges[id].item_id, edges[id].require));
+                        graph.outputs.push(new item_io(edges[id].to, edges[id].item_id, edges[id].amount));
+                        graph.removed_edges.push([graph.inputs.length - 1, graph.outputs.length - 1]);
+                        edges.splice(id, 1);
+                        id--;
+                    } else dfs(graph, edges[id].to);
+                }
+            }
+        deg.forEach((cnt, node) => {
+            if (cnt != 0) return;
+            dfs(this, node);
+        })
     }
 
     debug(): void {
         console.log(this.edge.size);
+        this.edge.forEach((edges, id) => {
+            console.log(id);
+            edges.forEach((edge) => {
+                console.log("  " + edge.to + " " + edge.item_id + " " + edge.amount + " " + edge.require);
+            })
+        })
 
+        console.log("inputs:");
+        this.inputs.forEach((item) => {
+            console.log("  " + item.item_id + " " + item.amount + " " + item.node);
+        });
+
+        console.log("outputs:");
+        this.outputs.forEach((item) => {
+            console.log("  " + item.item_id + " " + item.amount + " " + item.node);
+        });
+
+        console.log("removed edges:");
+        this.removed_edges.forEach((edge) => {
+            console.log("  " + edge[0] + " " + edge[1]);
+        });
     }
 }
 
 const test_input: string = fs.readFileSync('./test_case.json', 'utf8');
 
-// console.log(test_input);
-
 let graph: production_line_graph = parse_graph(JSON.parse(test_input));
+
+// console.log(graph);
+
+graph.debug();
+
+graph.eliminate_circle();
 
 graph.debug();
 
