@@ -55,8 +55,31 @@ interface graph_input_json {
     input_list: Array<item_list_entry>;
 }
 
-class item_edge {
+/**
+{
+    "success": false,
+    "error_type": "unelimitable_circle",
+    "nodes_in_circle": [
+        <node_id>,
+        ...
+    ] 
+} 
 
+
+ */
+
+interface error_unelimitable_circle {
+    success: boolean;
+    status: string;
+    error_type: string;
+    nodes_in_circle: Array<string>;
+}
+
+interface success_message {
+    success: boolean;
+}
+
+class item_edge {
     constructor(public from: string, public to: string, public amount: number, public item_id: string, public require: number) { }
 }
 
@@ -129,7 +152,7 @@ class production_line_graph {
         this.add_edge_raw(edge.from, edge.to, edge.item_id, edge.amount, edge.require);
     }
 
-    eliminate_circle(): void {
+    eliminate_circle(): success_message | error_unelimitable_circle {
         let visited: Map<string, boolean>;
         visited = new Map<string, boolean>();
         let deg: Map<string, number> = new Map<string, number>();
@@ -151,11 +174,11 @@ class production_line_graph {
         let dfs =
             function (graph: production_line_graph, now: string): void {
                 // console.log("dfs:" + now);
-                visited[now] = true;
+                visited.set(now, true);
                 let edges: item_edge[] = graph.edge.get(now);
                 for (let id = 0; id < edges.length; id++) {
                     if (edges[id].to == "output") continue;
-                    if (visited[edges[id].to]) {
+                    if (visited.get(edges[id].to)) {
                         graph.inputs.push(new item_io(edges[id].to, edges[id].item_id, edges[id].require));
                         graph.outputs.push(new item_io(edges[id].to, edges[id].item_id, edges[id].amount));
                         graph.removed_edges.push([graph.inputs.length - 1, graph.outputs.length - 1]);
@@ -168,6 +191,24 @@ class production_line_graph {
             if (cnt != 0) return;
             dfs(this, node);
         })
+
+        let unvisited_nodes: Array<string> = new Array<string>();
+
+        visited.forEach((is_visited, node_id) => {
+            if (!is_visited) unvisited_nodes.push(node_id);
+        });
+
+        if (unvisited_nodes.length != 0) {
+            return {
+                "success": false,
+                "error_type": "unelimitable_circle",
+                "nodes_in_circle": unvisited_nodes
+            }
+        } else {
+            return {
+                "success": true
+            }
+        }
     }
 
     debug(): void {
@@ -204,7 +245,7 @@ let graph: production_line_graph = parse_graph(JSON.parse(test_input));
 
 graph.debug();
 
-graph.eliminate_circle();
+console.log(graph.eliminate_circle());
 
 graph.debug();
 

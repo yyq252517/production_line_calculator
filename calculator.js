@@ -81,15 +81,15 @@ var production_line_graph = /** @class */ (function () {
                 deg.set(edge.to, deg.get(edge.to) + 1);
             });
         });
-        console.log(deg);
+        // console.log(deg);
         var dfs = function (graph, now) {
             // console.log("dfs:" + now);
-            visited[now] = true;
+            visited.set(now, true);
             var edges = graph.edge.get(now);
             for (var id = 0; id < edges.length; id++) {
                 if (edges[id].to == "output")
                     continue;
-                if (visited[edges[id].to]) {
+                if (visited.get(edges[id].to)) {
                     graph.inputs.push(new item_io(edges[id].to, edges[id].item_id, edges[id].require));
                     graph.outputs.push(new item_io(edges[id].to, edges[id].item_id, edges[id].amount));
                     graph.removed_edges.push([graph.inputs.length - 1, graph.outputs.length - 1]);
@@ -105,6 +105,23 @@ var production_line_graph = /** @class */ (function () {
                 return;
             dfs(_this, node);
         });
+        var unvisited_nodes = new Array();
+        visited.forEach(function (is_visited, node_id) {
+            if (!is_visited)
+                unvisited_nodes.push(node_id);
+        });
+        if (unvisited_nodes.length != 0) {
+            return {
+                "success": false,
+                "error_type": "unelimitable_circle",
+                "nodes_in_circle": unvisited_nodes
+            };
+        }
+        else {
+            return {
+                "success": true
+            };
+        }
     };
     production_line_graph.prototype.debug = function () {
         console.log(this.edge.size);
@@ -133,5 +150,5 @@ var test_input = fs.readFileSync('./test_case.json', 'utf8');
 var graph = parse_graph(JSON.parse(test_input));
 // console.log(graph);
 graph.debug();
-graph.eliminate_circle();
+console.log(graph.eliminate_circle());
 graph.debug();
